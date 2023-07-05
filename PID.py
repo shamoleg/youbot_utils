@@ -1,22 +1,40 @@
 #!/usr/bin/env python
 from geometry_msgs.msg import PointStamped, Twist
 import rospy
-import numpy as np
-import scipy
-import scipy.integrate
 
 class PID:
     def __init__(self, Ki=1, Kp = 1, Kd =1):
         self.Ki = Ki
         self.Kp = Kp
         self.Kd = Kd
+        self.errorSum = 0
+        self.cur_error = None
+        self.prev_error = None
 
-    def PIDtransferFunc(self, put): #функция для вычисления ПИД-регулирования
-        return self.Kp*put
+    def PIDtransferFunc(self): #функция для вычисления ПИД-регулирования
+        P = self.Kp * self.cur_error
+        I = self.Ki * self.errorSum
+        D = self.Kd * self.derrdt()
+        print(f'P: {P}')
+        print(f'I: {I}')
+        print(f'D: {D}')
+        return P+I+D
+    
+    def derrdt(self, dt=1): # dt - время дискретизации
+        if (self.prev_error is not None) and (self.cur_error is not None):
+            return (self.cur_error - self.prev_error)/dt
+        else:
+            return 0
     
     def calculate(self, input_sig, back_sig): #вычисление выходного сигнала после ПИД-регулирования
         error_sig = input_sig - back_sig
-        return self.PIDtransferFunc(error_sig)
+        self.errorSum += error_sig
+        if self.cur_error is None:
+            self.cur_error = error_sig
+        else:
+            self.prev_error = self.cur_error
+            self.cur_error = error_sig
+        return self.PIDtransferFunc()
 
 
 class Youbot:
@@ -52,10 +70,13 @@ if __name__ == "__main__":
     # u.setGoal(0.1, 0)
     # u.setGoal(-0.1, 0)
 
-    p = PID(Kp=200)
-    print(p.calculate(2, 1.99))
-
-    # x = lambda x: x**2 
-
-    # print(scipy.integrate.quad(x, -1, 1))
+    p = PID(Ki = 0.0001, Kp=200, Kd = 0)
+    output = p.calculate(2, 1.99)
+    print(output)
+    output = output*0.995
+    output = p.calculate(2, output)
+    print(output)
+    output = output*0.995
+    output = p.calculate(2, output)
+    print(output)
 
