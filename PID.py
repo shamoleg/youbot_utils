@@ -7,8 +7,6 @@ import scipy.integrate
 
 class PID:
     def __init__(self, Ki=1, Kp = 1, Kd =1):
-        self.input_sig = None #входящий сигнал
-        self.back_sig = None #сигнал обратной связи
         self.Ki = Ki
         self.Kp = Kp
         self.Kd = Kd
@@ -16,9 +14,9 @@ class PID:
     def PIDtransferFunc(self, put): #функция для вычисления ПИД-регулирования
         return self.Kp*put
     
-    def calculate(self): #вычисление выходного сигнала после ПИД-регулирования
-        output_sig = self.input_sig - self.back_sig
-        return self.PIDtransferFunc(output_sig)
+    def calculate(self, input_sig, back_sig): #вычисление выходного сигнала после ПИД-регулирования
+        error_sig = input_sig - back_sig
+        return self.PIDtransferFunc(error_sig)
 
 
 class Youbot:
@@ -55,9 +53,7 @@ if __name__ == "__main__":
     # u.setGoal(-0.1, 0)
 
     p = PID(Kp=200)
-    p.input_sig = 2
-    p.back_sig = 1.99
-    print(p.calculate())
+    print(p.calculate(2, 1.99))
 
     # x = lambda x: x**2 
 
