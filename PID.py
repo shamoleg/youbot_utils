@@ -36,11 +36,9 @@ class PID:
 class Youbot:
     def __init__(self, robotID: str):
         self.robotID = robotID
-        self.cur_x = None
-        self.cur_y = None
-        self.cur_z = None
-        self.updatepose()
-        self.velPub = rospy.Publisher('/base/cmd_vel', Twist, queue_size=1)
+        self.cur_pose = PointStamped()
+        self.pub_cmd_vel = rospy.Publisher('/base/cmd_vel', Twist, queue_size=1)
+        rospy.Subscriber('/marker_pose', PointStamped, self.callback_pose)
 
     def callback_pose(self, data: PointStamped):
         self.cur_pose = data
@@ -55,7 +53,6 @@ class Youbot:
             self.pub_cmd_vel.publish(vel)
 
         self.pub_cmd_vel.publish(Twist())
-
 
 if __name__ == "__main__":
     # u = Youbot('\x01')
