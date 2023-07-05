@@ -2,35 +2,23 @@
 from geometry_msgs.msg import PointStamped, Twist
 import rospy
 import numpy as np
-from scipy import integrate
-
-
+import scipy
+import scipy.integrate
 
 class PID:
-    def __init__(self, input_sig, back_sig = None, Ki=1, Kp = 1, Kd =1):
-        self.input_sig = input_sig
+    def __init__(self, Ki=1, Kp = 1, Kd =1):
+        self.input_sig = None #входящий сигнал
+        self.back_sig = None #сигнал обратной связи
         self.Ki = Ki
         self.Kp = Kp
         self.Kd = Kd
-        self.back_sig = back_sig
-        self.output_sig = None
 
-    def func(self, put):
+    def PIDtransferFunc(self, put): #функция для вычисления ПИД-регулирования
         return self.Kp*put
     
-    def getBack_sig(self):
-        #self.back_sig = чему-то
-        pass
-
-    def calculate(self):
-        output_sig = self.func(self.input_sig)
-        if self.back_sig is not None:
-            output_sig = self.input_sig - self.back_sig
-        else:
-            self.output_sig = output_sig
-            return 
-        self.output_sig = output_sig
-        return output_sig
+    def calculate(self): #вычисление выходного сигнала после ПИД-регулирования
+        output_sig = self.input_sig - self.back_sig
+        return self.PIDtransferFunc(output_sig)
 
 
 class Youbot:
@@ -39,6 +27,7 @@ class Youbot:
         self.cur_pose = PointStamped()
         self.pub_cmd_vel = rospy.Publisher('/base/cmd_vel', Twist, queue_size=1)
         rospy.Subscriber('/marker_pose', PointStamped, self.callback_pose)
+        self.pid = PID()
 
     def callback_pose(self, data: PointStamped):
         self.cur_pose = data
@@ -54,6 +43,9 @@ class Youbot:
 
         self.pub_cmd_vel.publish(Twist())
 
+    def setGoalwithPID(self, goal_X, goal_y):
+        vel = Twist()
+
 if __name__ == "__main__":
     # u = Youbot('\x01')
     # u.setGoal(0.1, 0)
@@ -62,13 +54,12 @@ if __name__ == "__main__":
     # u.setGoal(0.1, 0)
     # u.setGoal(-0.1, 0)
 
-    p = PID(2, Kp=0.8) 
-    p.calculate()
-    print(p.output_sig)
-    p.back_sig = p.output_sig*1.25
-    p.calculate()
-    print(p.output_sig)
-    p.back_sig = p.output_sig*1.25
-    p.calculate()
-    print(p.output_sig)
+    p = PID(Kp=200)
+    p.input_sig = 2
+    p.back_sig = 1.99
+    print(p.calculate())
+
+    # x = lambda x: x**2 
+
+    # print(scipy.integrate.quad(x, -1, 1))
 
