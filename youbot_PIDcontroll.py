@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from geometry_msgs.msg import PointStamped, Twist
-import rospy
+import rospy, time
 from PID import PIDcontroller, test_func
 
 
@@ -10,14 +10,16 @@ class Youbot:
         self.cur_pose = PointStamped()
         self.pub_cmd_vel = rospy.Publisher('/base/cmd_vel', Twist, queue_size=1)
         rospy.Subscriber('/marker_pose', PointStamped, self.callback_pose)
-        self.pid = PIDcontroller(0, 1, 0)
+        self.pid = PIDcontroller(1, 1, 2)
+        rospy.init_node('youbot_controll')
 
         #velocity params
         self.velMax = 0.3
-        self.velMin = 0.01
+        self.velMin = 0.05
 
     def callback_pose(self, data: PointStamped):
-        self.cur_pose = data
+        if data.header.frame_id == self.robotID:
+            self.cur_pose = data
 
     def setGoal(self, goal_x, goal_y, threshold=0.005):
         vel = Twist()
@@ -40,15 +42,11 @@ class Youbot:
     def setGoalwithPID(self, goal_x, goal_y):
         vel = Twist()
         coef_P = 0.1
-
-        while abs(round(self.pid.output, 4)) != abs(round(goal_x, 4)):
-            vel.linear.x = self.pid.updatePID(goal_x, self.cur_pose.point.x)*coef_P
-            if abs(vel.linear.x) > self.velMax:
-                vel.linear.x = self.velMax * (goal_x/abs(goal_x))
-            elif abs(vel.linear.x) < self.velMin:
-                vel.linear.x = self.velMin * (goal_x/abs(goal_x))
+        error = abs(self.pid.output) - abs(goal_x)
+        while abs(error) > 0.005:
+            vel.linear.x = self.velOn(float(self.pid.updatePID(goal_x, self.cur_pose.point.x)) * coef_P)
             self.pub_cmd_vel.publish(vel)
-
+            error = abs(self.pid.output) - abs(goal_x)
         # while abs(round(self.pid.output, 4)) != abs(round(goal_y, 4)):
         #     vel.linear.y = self.pid.updatePID(goal_y, self.cur_pose.point.y)*coef_P
         #     if abs(vel.linear.y) > self.velMax:
@@ -56,16 +54,31 @@ class Youbot:
         #     elif abs(vel.linear.y) < self.velMin:
         #         vel.linear.y = self.velMin * (goal_y/abs(goal_y))
         #     self.pub_cmd_vel.publish(vel)
-
         self.pub_cmd_vel.publish(Twist())
+
+    def velOn(self, vel):
+        if abs(vel) > self.velMax:
+            vel = self.velMax * vel/abs(vel)
+        elif vel < self.velMin:
+            vel = self.velMin * vel/abs(vel)
+        return vel
 
 
 
 if __name__ == "__main__":
     u = Youbot('\x01')
-    u.setGoalwithPID(0.1, 0)
-    u.setGoalwithPID(0.1, 0)
-    u.setGoalwithPID(-0.1, 0)
-    u.setGoalwithPID(0.1, 0)
-    u.setGoalwithPID(-0.1, 0)
-    pass
+    # rospy.sleep(0.5)
+    # print(u.pid.output)
+    # print(u.cur_pose)
+    # u.setGoalwithPID(0.6, 0)
+    # print(u.pid.output)
+    # print(u.cur_pose)
+    # u.setGoalwithPID(0.2, 0)
+    # print(u.pid.output)
+    # print(u.cur_pose)
+    # u.setGoalwithPID(0.4, 0)
+    # print(u.pid.output)
+    # print(u.cur_pose)
+    # u.pub_cmd_vel.publish(Twist())
+    
+    
