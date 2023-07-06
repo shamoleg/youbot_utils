@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-from time import time
+from time import time, sleep
 
-class PID:
+class PIDcontroller:
     def __init__(self, Ki=0, Kp = 0, Kd =0):
         #gains#
         self.Ki = Ki
@@ -79,8 +79,9 @@ def test_func(inp):
     return output
 
 if __name__ == "__main__":
-    pid = PID(Ki = 0.5, Kp=2, Kd = 0.25)
-    for i in range(10):
+    pid = PIDcontroller(Ki = 0, Kp=1.010099, Kd = 0)
+    for i in range(50):
         back_signal = test_func(pid.output)
-        print(pid.updatePID(1, back_signal))
+        print(f'time: {pid.T()}\npid :{pid.updatePID(1, back_signal)}')
+        sleep(0.1)
 
