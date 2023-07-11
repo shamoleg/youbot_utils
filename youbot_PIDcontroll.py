@@ -2,6 +2,9 @@
 from geometry_msgs.msg import PointStamped, Twist
 import rospy, math
 from PID import PIDcontroller
+from scipy.interpolate import CubicSpline
+import numpy as np
+from matplotlib import pyplot as plt
 
 
 class Youbot:
@@ -16,6 +19,7 @@ class Youbot:
         #velocity params
         self.velMax = 0.3
         self.velMin = 0.02
+        self.cur_vel = 0.0
 
     def callback_pose(self, data: PointStamped):
         if data.header.frame_id == self.robotID:
@@ -45,31 +49,30 @@ class Youbot:
         vel = Twist()
 
         vectors = self.vector_to_goal(goal_x, goal_y)
-        abs_v, _ = self.pid.update(self.velMax, 0) #absolute speed
-        dec_way = self.decseleration_way() #distance to stop moving
+        goal_vel = self.fuzzy(vectors)
+        self.cur_vel, _ = self.pid.update(goal_vel, self.cur_vel) #absolute speed
+        # dec_way = self.decseleration_way() #distance to stop moving
 
-        while vectors[2] >= 0.005:
+        while vectors[2] >= 0.009:
             try:
-                tau = vectors[2] / abs_v #time for calculation speeds
+                tau = vectors[2] / self.cur_vel #time for calculation speeds
             except ZeroDivisionError:
-                tau = 0.000001
+                tau = 100000000
             v_x = vectors[0] / tau #speed in x-axis
             v_y = vectors[1] / tau #speed in y-axis
             vel.linear.x = v_x
             vel.linear.y = v_y
-
             self.pub_cmd_vel.publish(vel)
 
-            if vectors[2] <= dec_way:
-                abs_v, _ = self.pid.update(self.velMin, abs_v)
-            else:
-                abs_v, _ = self.pid.update(self.velMax, abs_v)
+            # if vectors[2] <= dec_way:
+            #     abs_v, _ = self.pid.update(self.velMin, abs_v)
+            # else:
+            #     abs_v, _ = self.pid.update(self.velMax, abs_v)
             vectors = self.vector_to_goal(goal_x, goal_y)
-            
-        acselerations = self.calculate_acselerations(vector, 0.3, 0.01)
-        vel = Twist()
-        self.pub_cmd_vel.publish(vel)
-
+            goal_vel = self.fuzzy(vectors)
+            self.cur_vel, _ = self.pid.update(goal_vel, self.cur_vel)
+        return
+  
     def decseleration_way(self):
         abstract_pid =  PIDcontroller(self.pid.Kp, self.pid.Ki, self.pid.Kd)
         v, t = abstract_pid.update(0.0, self.velMax)
@@ -130,11 +133,63 @@ class Youbot:
 
         return (n_a, n_m)
         
+    def fuzzy(self, vector):
+        if vector[2] < 0.2:
+            goal_vel = self.velMin
+        elif vector[2] >= 0.2 and vector[2] <= 0.4:
+            goal_vel = self.velMax / 2
+        elif vector[2] > 0.4:
+            goal_vel = self.velMax
+        return goal_vel
+    
+    def move_by_spline(self, x, y, dt = 0.2, n=10):
+        '''x and y is lists of coordinates by axes'''
+        '''dt is discretization of time'''
+        t = [dt*i for i in range(len(x))]
+        line_x = CubicSpline(t, x, bc_type='natural')
+        line_y = CubicSpline(t, y, bc_type='natural')
+        t_new = np.linspace(t[0], t[len(t)-1], n)
+        x_new = line_x(t_new)
+        y_new = line_y(t_new)
+
+        for i in range(len(x_new)):
+            print(f'Going to pose: (x: {x_new[i]}, y: {y_new[i]})')
+            self.set_goal_with_pid(x_new[i], y_new[i])
+            print(self.cur_pose.point)   
+
+        self.pub_cmd_vel.publish(Twist())
 
         
+def move_by_spline1(x, y, dt = 0.2, n = 20):
+    '''x and y is lists of coordinates by axes'''
+    '''dt is discretization of time'''
+    '''n is nums of points'''
+    t = [dt*i for i in range(len(x))]
+    line_x = CubicSpline(t, x, bc_type='natural')
+    line_y = CubicSpline(t, y, bc_type='natural')
+    t_new = np.linspace(t[0], t[len(t)-1], n)
+    x_new = line_x(t_new)
+    y_new = line_y(t_new)
+    print(len(x_new))
+    plt.figure(figsize = (10,8))
+    plt.plot(x_new, y_new, 'b')
+    plt.plot(x, y, 'ro')
+    plt.title('Cubic Spline Interpolation')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.show()
+   
+        
 if __name__ == "__main__":
+    # # while True:
+    #     x = float(input("x: "))
+    #     y = float(input("y: "))
+    #     u.set_goal_with_pid(x, y)
+    #     print(u.cur_pose)
+    #     u.pub_cmd_vel.publish(Twist())
+    x = [0.1, 0.2, 0.4, 0.4, 0.5, 0.6, 0.7]
+    y = [0.6, 0.6, 0.0, 0.6, 0.0, 0.6, 0.0]
+    move_by_spline1(x, y, n = len(x))
     u = Youbot('\x01')
     rospy.sleep(0.5)
-    u.set_goal_with_pid(0.3, 0.3)
-    print(u.cur_pose)
-    u.pub_cmd_vel.publish(Twist())
+    u.move_by_spline(x, y, n = len(x))
