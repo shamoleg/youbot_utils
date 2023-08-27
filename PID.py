@@ -1,61 +1,78 @@
 #!/usr/bin/env python
-from geometry_msgs.msg import PointStamped, Twist
-import rospy
-import numpy as np
-import scipy
-import scipy.integrate
+from matplotlib import pyplot as plt
+import time
+from scipy import interpolate
 
-class PID:
-    def __init__(self, Ki=1, Kp = 1, Kd =1):
-        self.Ki = Ki
+class PIDcontroller:
+    def __init__(self, Kp=0.00002, Ki=0.02, Kd=0.00002):
         self.Kp = Kp
+        self.Ki = Ki
         self.Kd = Kd
+        self.t0 = time.time()
+        
+        # self.e_prev = 0.0
+        # self.Integrator = 0.0
 
-    def PIDtransferFunc(self, put): #функция для вычисления ПИД-регулирования
-        return self.Kp*put
-    
-    def calculate(self, input_sig, back_sig): #вычисление выходного сигнала после ПИД-регулирования
-        error_sig = input_sig - back_sig
-        return self.PIDtransferFunc(error_sig)
+        # self.dt = 0.001
+
+    def T(self):
+        # time.sleep(self.dt)
+        t1 = time.time()
+        return t1 - self.t0
+
+    def update(self, v_in, v_back):
+        e = v_in - v_back
+        P = self.Kp * e
+        t = self.T()
+        I = self.Kp * self.Ki * e * t * 0.5
+        D = self.Kp * self.Kd * e / t
+        u = v_back + P+I+D
+        return u, t
+
+    # def update(self, v_in, v_back):
+    #     e = v_in - v_back
+    #     P = self.Kp * e
+    #     t = self.T()
+    #     self.Integrator = self.Integrator + e
+    #     I = self.Ki * self.Integrator
+    #     D = self.Kd * (e - self.e_prev) / self.dt
+    #     u = P+I+D
+    #     return u, t
+
+if __name__ == '__main__':
+    pid = PIDcontroller()
+    v_in = 0.3
+    v_start = 0.0
+    time.sleep(0.0000001)
+    v_back, t = pid.update(v_in, v_start)
+    tF = []
+    tp = []
+    # tF.append(v_back)
+    # tp.append(t)
+    i = 0
+    while v_back < v_in - 0.001:
+        v_back, t0 = pid.update(v_in, v_back)
+        tF.append(v_back)
+        tp.append(t0)
+    # print(tp[4]-tp[3])
+    # print(tp[10]-tp[9])
+    # print(tp[2000]-tp[1999])
+    # print(tp[20000]-tp[19999])
+    tF.append(v_back)
+    tp.append(0.0)
+    while v_back > 0.001 :
+        v_back, t = pid.update(0.0, v_back)
+        tF.append(v_back)
+        tp.append(t-t0)
+    plt.plot(tp, tF)
+    plt.xlabel('Time')
+    plt.ylabel('Speed')
+    plt.grid(True)
+    plt.show()
+    print(t0)
+    print(t-t0)
+    # line = interpolate.splrep(tp, tF)
+    # print(interpolate.splev(1.0, line))
 
 
-class Youbot:
-    def __init__(self, robotID: str):
-        self.robotID = robotID
-        self.cur_pose = PointStamped()
-        self.pub_cmd_vel = rospy.Publisher('/base/cmd_vel', Twist, queue_size=1)
-        rospy.Subscriber('/marker_pose', PointStamped, self.callback_pose)
-        self.pid = PID()
-
-    def callback_pose(self, data: PointStamped):
-        self.cur_pose = data
-
-    def setGoal(self, goal_x, goal_y, threshold=0.005):
-        vel = Twist()
-        coef_P = 0.1
-        error_x = goal_x - self.cur_pose.point.x
-        while abs(error_x) > abs(threshold):
-            vel.linear.x = coef_P * error_x
-            error_x = goal_x - self.cur_pose.point.x
-            self.pub_cmd_vel.publish(vel)
-
-        self.pub_cmd_vel.publish(Twist())
-
-    def setGoalwithPID(self, goal_X, goal_y):
-        vel = Twist()
-
-if __name__ == "__main__":
-    # u = Youbot('\x01')
-    # u.setGoal(0.1, 0)
-    # u.setGoal(0.1, 0)
-    # u.setGoal(-0.1, 0)
-    # u.setGoal(0.1, 0)
-    # u.setGoal(-0.1, 0)
-
-    p = PID(Kp=200)
-    print(p.calculate(2, 1.99))
-
-    # x = lambda x: x**2 
-
-    # print(scipy.integrate.quad(x, -1, 1))
 
